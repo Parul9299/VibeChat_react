@@ -6,10 +6,12 @@ import { StatusView } from './chat/StatusView';
 import { CallsView } from './chat/CallsView';
 
 export const ChatApp = () => {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const [currentView, setCurrentView] = useState('chats');
   const [selectedConversationId, setSelectedConversationId] = useState(null);
-  if (!profile) return null;
+
+  if (!user) return null;
+
   return (
     <div className="h-screen flex" style={{ backgroundColor: '#031229' }}>
       <Sidebar

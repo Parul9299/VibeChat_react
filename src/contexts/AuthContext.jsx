@@ -60,26 +60,31 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signIn = async (email, password) => {
-    try {
-      const response = await fetch(`${Base_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        return { error: data.message || 'Signin failed' };
-      }
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        setUser(data.user);
-      }
-      return { data };
-    } catch (err) {
-      return { error: err.message };
+const signIn = async (email, password) => {
+  try {
+    const response = await fetch(`${Base_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { error: data.message || 'Signin failed' };
     }
-  };
+
+    if (data.accessToken) {
+      localStorage.setItem('token', data.accessToken);
+      setUser(data);        // IMPORTANT
+    }
+
+    return { data };
+  } catch (err) {
+    return { error: err.message };
+  }
+};
+
 
   const sendVerificationEmail = async (email) => {
     try {
@@ -131,5 +136,7 @@ export const AuthProvider = ({ children }) => {
     logout,
   };
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signUp /* etc. */ }}>{children}</AuthContext.Provider>;
+  // return <AuthContext.Provider value={{ user, loading, signIn, signUp /* etc. */ }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+
 };
