@@ -1,73 +1,39 @@
-import { useState, useEffect } from 'react';
-import { MessageCircle, Search, Menu, Phone, Users, Clock } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { MessageCircle, Search, EllipsisVertical, Phone, Users, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-
+import { useChatUsers } from '../../contexts/Conversation'; // Import the new hook
 export const Sidebar = ({
   currentView,
   onViewChange,
   selectedConversationId,
   onSelectConversation,
 }) => {
-  const { profile, signOut } = useAuth();
+  const { profile, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [conversations, setConversations] = useState([]);
-  const [users, setUsers] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [userData, setUserData] = useState(null);
+  // Use the hook for chat data (existing conversations/users)
+  const { users: apiData, loading: loadingUsers } = useChatUsers();
+  const uniqueUsers = apiData?.uniqueUsers || [];
+  const conversations = useMemo(() => {
+    return uniqueUsers.map((u) => ({
+      id: u.conversationId,
+      is_group: false,
+      otherUser: {
+        id: u.participant.receiver,
+        full_name: u.participant.fullName,
+        phone: u.participant.phone,
+      },
+    }));
+  }, [uniqueUsers]);
   useEffect(() => {
-    if (profile) {
-      loadConversations();
-      loadUsers();
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUserData(JSON.parse(storedUser));
     }
-  }, [profile]);
-  const loadConversations = async () => {
-    if (!profile) return;
-    const { data: participantData } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', profile.id);
-    if (!participantData) return;
-    const conversationIds = participantData.map(p => p.conversation_id);
-    const { data: conversationsData } = await supabase
-      .from('conversations')
-      .select('*')
-      .in('id', conversationIds)
-      .order('updated_at', { ascending: false });
-    if (conversationsData) {
-      const conversationsWithUsers = await Promise.all(
-        conversationsData.map(async (conv) => {
-          if (!conv.is_group) {
-            const { data: participants } = await supabase
-              .from('conversation_participants')
-              .select('user_id')
-              .eq('conversation_id', conv.id)
-              .neq('user_id', profile.id)
-              .maybeSingle();
-            if (participants) {
-              const { data: otherUser } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', participants.user_id)
-                .maybeSingle();
-              return { ...conv, otherUser: otherUser || undefined };
-            }
-          }
-          return conv;
-        })
-      );
-      setConversations(conversationsWithUsers);
-    }
-  };
-  const loadUsers = async () => {
-    if (!profile) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .neq('id', profile.id);
-    if (data) {
-      setUsers(data);
-    }
-  };
+  }, []);
   const createConversation = async (otherUserId) => {
     if (!profile) return;
     const { data: existingConv } = await supabase
@@ -104,7 +70,6 @@ export const Sidebar = ({
       ]);
       onSelectConversation(newConv.id);
       setShowNewChat(false);
-      loadConversations();
     }
   };
   const getConversationName = (conv) => {
@@ -120,25 +85,66 @@ export const Sidebar = ({
       <div className="p-4 border-b" style={{ borderColor: '#051834' }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                 style={{ background: 'linear-gradient(135deg, #FFD87C 0%, #CA973E 100%)' }}>
-              <MessageCircle className="w-5 h-5" style={{ color: '#031229' }} />
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center"
+              style={{
+                background: "linear-gradient(135deg, #FFD87C 0%, #CA973E 100%)",
+              }}
+            >
+              <MessageCircle className="w-5 h-5" style={{ color: "#031229" }} />
             </div>
             <div>
-              <h2 className="font-bold" style={{ color: '#FFFFFF' }}>VibeChat</h2>
-              <p className="text-xs" style={{ color: '#526F8A' }}>BIZVILITY</p>
+              <h2 className="font-bold" style={{ color: "#FFFFFF" }}>VibeChat</h2>
+              <p className="text-xs" style={{ color: "#526F8A" }}>BIZVILITY</p>
             </div>
           </div>
-          <button
-            onClick={signOut}
-            className="p-2 rounded-lg hover:bg-opacity-10 transition-colors"
-            style={{ color: '#526F8A' }}
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          {/* Dropdown Menu */}
+          <div className="relative">
+            <div
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="p-2 rounded-lg hover:bg-opacity-10 transition-colors cursor-pointer"
+              style={{ color: "#526F8A" }}
+            >
+              <EllipsisVertical className="w-5 h-5" />
+            </div>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-40 bg-[#0B1623] shadow-lg rounded-lg border border-gray-800 overflow-hidden z-50">
+                {/* Profile */}
+                <div
+                  onClick={() => {
+                    console.log("Profile clicked");
+                    setMenuOpen(false);
+                  }}
+                  className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700/40 cursor-pointer"
+                >
+                  Profile
+                </div>
+                {/* Settings */}
+                <div
+                  onClick={() => {
+                    console.log("Settings clicked");
+                    setMenuOpen(false);
+                  }}
+                  className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700/40 cursor-pointer"
+                >
+                  Settings
+                </div>
+                {/* Logout */}
+                <div
+                  onClick={() => {
+                    logout();
+                    setMenuOpen(false);
+                  }}
+                  className="px-4 py-2 text-sm text-red-400 hover:bg-red-500/20 cursor-pointer"
+                >
+                  Logout
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
-             style={{ backgroundColor: '#051834' }}>
+          style={{ backgroundColor: '#051834' }}>
           <Search className="w-4 h-4" style={{ color: '#526F8A' }} />
           <input
             type="text"
@@ -180,74 +186,87 @@ export const Sidebar = ({
             </button>
             {showNewChat && (
               <div className="border-b" style={{ borderColor: '#051834' }}>
-                {users.map((user) => (
-                  <button
-                    key={user.id}
-                    onClick={() => createConversation(user.id)}
-                    className="w-full p-4 flex items-center gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
-                  >
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold"
-                         style={{ backgroundColor: '#385B9E', color: '#FFFFFF' }}>
-                      {user.full_name[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="font-medium" style={{ color: '#FFFFFF' }}>
-                        {user.full_name}
-                      </p>
-                      <p className="text-sm" style={{ color: '#526F8A' }}>
-                        @{user.username}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                {loadingUsers ? (
+                  <p style={{ color: '#526F8A', padding: '16px', textAlign: 'center' }}>Loading users...</p>
+                ) : (
+                  uniqueUsers.map((u) => (
+                    <button
+                      key={u.participant.receiver}
+                      onClick={() => createConversation(u.participant.receiver)}
+                      className="w-full p-4 flex items-center gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
+                    >
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold"
+                        style={{ backgroundColor: '#385B9E', color: '#FFFFFF' }}>
+                        {u.participant.fullName?.[0]?.toUpperCase() || '?'}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium" style={{ color: '#FFFFFF' }}>
+                          {u.participant.fullName || 'Unknown User'}
+                        </p>
+                        <p className="text-sm" style={{ color: '#526F8A' }}>
+                          {u.participant.phone || '@unknown'}
+                        </p>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             )}
-            {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => onSelectConversation(conv.id)}
-                className="w-full p-4 flex items-center gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
-                style={{
-                  backgroundColor: selectedConversationId === conv.id ? 'rgba(255, 216, 124, 0.1)' : 'transparent',
-                }}
-              >
-                <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold"
-                     style={{
-                       backgroundColor: getConversationAvatar(conv) ? 'transparent' : '#385B9E',
-                       backgroundImage: getConversationAvatar(conv) ? `url(${getConversationAvatar(conv)})` : 'none',
-                       backgroundSize: 'cover',
-                       color: '#FFFFFF'
-                     }}>
-                  {!getConversationAvatar(conv) && getConversationName(conv)[0].toUpperCase()}
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="font-medium" style={{ color: '#FFFFFF' }}>
-                    {getConversationName(conv)}
-                  </p>
-                  <p className="text-sm truncate" style={{ color: '#526F8A' }}>
-                    {conv.otherUser?.status_text || 'Click to start chatting'}
-                  </p>
-                </div>
-                {conv.otherUser?.is_online && (
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4CAF50' }} />
-                )}
-              </button>
-            ))}
+            {loadingUsers ? (
+              <p style={{ color: '#526F8A', padding: '16px', textAlign: 'center' }}>Loading conversations...</p>
+            ) : (
+              conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => onSelectConversation(conv.id)}
+                  className="w-full p-4 flex items-center gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
+                  style={{
+                    backgroundColor: selectedConversationId === conv.id ? 'rgba(255, 216, 124, 0.1)' : 'transparent',
+                  }}
+                >
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold"
+                    style={{
+                      backgroundColor: getConversationAvatar(conv) ? 'transparent' : '#385B9E',
+                      backgroundImage: getConversationAvatar(conv) ? `url(${getConversationAvatar(conv)})` : 'none',
+                      backgroundSize: 'cover',
+                      color: '#FFFFFF'
+                    }}>
+                    {!getConversationAvatar(conv) && getConversationName(conv)[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-medium" style={{ color: '#FFFFFF' }}>
+                      {getConversationName(conv)}
+                    </p>
+                    <p className="text-sm truncate" style={{ color: '#526F8A' }}>
+                      {conv.otherUser?.phone || 'Click to start chatting'}
+                    </p>
+                  </div>
+                  {conv.otherUser?.is_online && (
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4CAF50' }} />
+                  )}
+                </button>
+              ))
+            )}
           </>
         )}
       </div>
-      <div className="p-4 border-t" style={{ borderColor: '#051834' }}>
+      <div className="p-4 border-t" style={{ borderColor: '#051834', borderTop: '1px solid #ccc' }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-semibold"
-               style={{ backgroundColor: '#385B9E', color: '#FFFFFF' }}>
-            {profile?.full_name[0].toUpperCase()}
+            style={{
+              backgroundColor: userData?.avatar_url ? 'transparent' : '#385B9E',
+              backgroundImage: userData?.avatar_url ? `url(${userData.avatar_url})` : 'none',
+              backgroundSize: 'cover',
+              color: '#FFFFFF'
+            }}>
+            {!userData?.avatar_url && userData?.fullName?.[0]?.toUpperCase()}
           </div>
           <div className="flex-1">
             <p className="font-medium" style={{ color: '#FFFFFF' }}>
-              {profile?.full_name}
+              {userData?.fullName || 'Unknown User'}
             </p>
             <p className="text-xs" style={{ color: '#526F8A' }}>
-              {profile?.status_text}
+              {userData?.email || 'No email'}
             </p>
           </div>
         </div>
