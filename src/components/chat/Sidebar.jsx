@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { MessageCircle, Search, EllipsisVertical, Phone, Users, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -14,6 +14,8 @@ export const Sidebar = ({
   const [showNewChat, setShowNewChat] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userData, setUserData] = useState(null);
+  const menuButtonRef = useRef(null);
+  const menuDropdownRef = useRef(null);
   // Use the hook for chat data (existing conversations/users)
   const { users: apiData, loading: loadingUsers } = useChatUsers();
   const uniqueUsers = apiData?.uniqueUsers || [];
@@ -51,6 +53,7 @@ export const Sidebar = ({
         if (otherParticipant) {
           onSelectConversation(conv.conversation_id);
           setShowNewChat(false);
+          setMenuOpen(false); // Close menu on activity
           return;
         }
       }
@@ -70,6 +73,7 @@ export const Sidebar = ({
       ]);
       onSelectConversation(newConv.id);
       setShowNewChat(false);
+      setMenuOpen(false); // Close menu on activity
     }
   };
   const getConversationName = (conv) => {
@@ -80,6 +84,29 @@ export const Sidebar = ({
     if (conv.is_group) return conv.avatar_url;
     return conv.otherUser?.avatar_url;
   };
+  const closeMenu = () => {
+    setMenuOpen(false);
+  };
+  const toggleMenu = (e) => {
+    e.stopPropagation();
+    setMenuOpen(!menuOpen);
+  };
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuDropdownRef.current && !menuDropdownRef.current.contains(e.target) &&
+          menuButtonRef.current && !menuButtonRef.current.contains(e.target)) {
+        closeMenu();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  useEffect(() => {
+    const handleViewChange = () => closeMenu();
+    const handleSelectConversation = () => closeMenu();
+    onViewChange = handleViewChange; // Wrap to close menu
+    onSelectConversation = handleSelectConversation; // Wrap to close menu
+  }, [onViewChange, onSelectConversation]);
   return (
     <div className="w-80 flex flex-col border-r" style={{ backgroundColor: '#021142', borderColor: '#051834' }}>
       <div className="p-4 border-b" style={{ borderColor: '#051834' }}>
@@ -101,19 +128,29 @@ export const Sidebar = ({
           {/* Dropdown Menu */}
           <div className="relative">
             <div
-              onClick={() => setMenuOpen(!menuOpen)}
+              ref={menuButtonRef}
+              onClick={toggleMenu}
               className="p-2 rounded-lg hover:bg-opacity-10 transition-colors cursor-pointer"
               style={{ color: "#526F8A" }}
             >
               <EllipsisVertical className="w-5 h-5" />
             </div>
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-40 bg-[#0B1623] shadow-lg rounded-lg border border-gray-800 overflow-hidden z-50">
+              <div 
+                ref={menuDropdownRef}
+                className="absolute right-0 mt-2 w-40 bg-[#0B1623] shadow-lg rounded-lg border border-gray-800 overflow-hidden z-50"
+                style={{
+                  // Simple positioning to prevent overflow
+                  right: 0,
+                  top: '100%',
+                  left: 'auto',
+                }}
+              >
                 {/* Profile */}
                 <div
                   onClick={() => {
                     console.log("Profile clicked");
-                    setMenuOpen(false);
+                    closeMenu();
                   }}
                   className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700/40 cursor-pointer"
                 >
@@ -123,7 +160,7 @@ export const Sidebar = ({
                 <div
                   onClick={() => {
                     console.log("Settings clicked");
-                    setMenuOpen(false);
+                    closeMenu();
                   }}
                   className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700/40 cursor-pointer"
                 >
@@ -133,7 +170,7 @@ export const Sidebar = ({
                 <div
                   onClick={() => {
                     logout();
-                    setMenuOpen(false);
+                    closeMenu();
                   }}
                   className="px-4 py-2 text-sm text-red-400 hover:bg-red-500/20 cursor-pointer"
                 >
@@ -160,7 +197,10 @@ export const Sidebar = ({
         {(['chats', 'status', 'calls', 'groups']).map((view) => (
           <button
             key={view}
-            onClick={() => onViewChange(view)}
+            onClick={() => {
+              onViewChange(view);
+              closeMenu(); // Close on view change
+            }}
             className="flex-1 py-3 text-sm font-medium transition-colors"
             style={{
               color: currentView === view ? '#FFD87C' : '#526F8A',
@@ -178,7 +218,10 @@ export const Sidebar = ({
         {currentView === 'chats' && (
           <>
             <button
-              onClick={() => setShowNewChat(!showNewChat)}
+              onClick={() => {
+                setShowNewChat(!showNewChat);
+                closeMenu(); // Close on new chat toggle
+              }}
               className="w-full p-4 text-left hover:bg-opacity-5 hover:bg-white transition-colors"
               style={{ color: '#FFD87C', borderBottom: '1px solid #051834' }}
             >
@@ -218,7 +261,10 @@ export const Sidebar = ({
               conversations.map((conv) => (
                 <button
                   key={conv.id}
-                  onClick={() => onSelectConversation(conv.id)}
+                  onClick={() => {
+                    onSelectConversation(conv.id);
+                    closeMenu(); // Close on select
+                  }}
                   className="w-full p-4 flex items-center gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
                   style={{
                     backgroundColor: selectedConversationId === conv.id ? 'rgba(255, 216, 124, 0.1)' : 'transparent',
