@@ -90,9 +90,76 @@ export const useMessages = (conversationId) => {
     }
   };
 
+  const editMessage = async (messageId, newText) => {
+    if (!conversationId || !messageId || !newText.trim()) return false;
+    try {
+      const token = localStorage.getItem("token");
+      const currentUserId = getCurrentUserId();
+      if (!currentUserId) {
+        throw new Error("User ID not found");
+      }
+      const response = await fetch(`${Base_URL}/message/edit/${messageId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          userId: currentUserId,
+          text: newText.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Refetch messages after edit to update UI
+      await fetchMessages();
+      return true;
+    } catch (err) {
+      console.error("Error editing message:", err);
+      setError(err.message);
+      return false;
+    }
+  };
+
+  const deleteMessage = async (messageId) => {
+    if (!conversationId || !messageId) return false;
+    try {
+      const token = localStorage.getItem("token");
+      const currentUserId = getCurrentUserId();
+      if (!currentUserId) {
+        throw new Error("User ID not found");
+      }
+      const response = await fetch(`${Base_URL}/message/delete/${messageId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          userId: currentUserId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Refetch messages after delete to update UI
+      await fetchMessages();
+      return true;
+    } catch (err) {
+      console.error("Error deleting message:", err);
+      setError(err.message);
+      return false;
+    }
+  };
+
   useEffect(() => {
     fetchMessages();
   }, [conversationId]);
 
-  return { messages, loading, error, sendMessage, refetch: fetchMessages };
+  return { messages, loading, error, sendMessage, editMessage, deleteMessage, refetch: fetchMessages };
 };

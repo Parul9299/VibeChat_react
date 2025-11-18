@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { MessageCircle, Search, EllipsisVertical, Phone, Users, Clock } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { MessageCircle, Search, EllipsisVertical, Phone, Users, CircleDashed } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useChatUsers } from '../../contexts/Conversation'; // Import the new hook
@@ -94,34 +94,80 @@ export const Sidebar = ({
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (menuDropdownRef.current && !menuDropdownRef.current.contains(e.target) &&
-          menuButtonRef.current && !menuButtonRef.current.contains(e.target)) {
+        menuButtonRef.current && !menuButtonRef.current.contains(e.target)) {
         closeMenu();
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-  useEffect(() => {
-    const handleViewChange = () => closeMenu();
-    const handleSelectConversation = () => closeMenu();
-    onViewChange = handleViewChange; // Wrap to close menu
-    onSelectConversation = handleSelectConversation; // Wrap to close menu
-  }, [onViewChange, onSelectConversation]);
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuButtonRef.current || !menuDropdownRef.current) return;
+
+    const buttonRect = menuButtonRef.current.getBoundingClientRect();
+    const dropdown = menuDropdownRef.current;
+    const dropdownRect = dropdown.getBoundingClientRect();
+    const dHeight = dropdownRect.height;
+    const dWidth = 160;
+    const gap = 4;
+    const winWidth = window.innerWidth;
+    const winHeight = window.innerHeight;
+
+    // Vertical positioning
+    let calculatedTop = buttonRect.bottom + gap;
+    if (calculatedTop + dHeight > winHeight) {
+      const aboveTop = buttonRect.top - dHeight - gap;
+      calculatedTop = aboveTop >= 0 ? aboveTop : winHeight - dHeight;
+    }
+    if (calculatedTop < 0) calculatedTop = 0;
+    if (calculatedTop + dHeight > winHeight) calculatedTop = winHeight - dHeight;
+
+    // Horizontal positioning
+    const isDesktopOrTablet = winWidth >= 768;
+    const mobileRightPadding = 8; // <-- added
+
+    let preferredLeft = isDesktopOrTablet
+      ? buttonRect.right - dWidth
+      : buttonRect.left;
+
+    let calculatedLeft = preferredLeft;
+
+    // Left overflow → flip
+    if (calculatedLeft < 0) {
+      if (isDesktopOrTablet) {
+        calculatedLeft = buttonRect.left;
+      } else {
+        calculatedLeft = buttonRect.right - dWidth - mobileRightPadding; // <-- updated
+      }
+    }
+
+    // Right overflow → push left
+    if (calculatedLeft + dWidth > winWidth) {
+      calculatedLeft = winWidth - dWidth - mobileRightPadding; // <-- updated
+    }
+
+    if (calculatedLeft < 0) calculatedLeft = 0;
+    if (calculatedLeft + dWidth > winWidth) calculatedLeft = winWidth - dWidth;
+
+    dropdown.style.width = `${dWidth}px`;
+    dropdown.style.top = `${calculatedTop}px`;
+    dropdown.style.left = `${calculatedLeft}px`;
+  }, [menuOpen]);
   return (
-    <div className="w-80 flex flex-col border-r" style={{ backgroundColor: '#021142', borderColor: '#051834' }}>
-      <div className="p-4 border-b" style={{ borderColor: '#051834' }}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+    <div className="w-full md:w-80 h-screen flex flex-col border-r" style={{ backgroundColor: '#021142', borderColor: '#051834' }}>
+      <div className="p-2 md:p-4 border-b" style={{ borderColor: '#051834' }}>
+        <div className="flex items-center justify-between mb-2 md:mb-4">
+          <div className="flex items-center gap-2 md:gap-3">
             <div
-              className="w-10 h-10 rounded-full flex items-center justify-center"
+              className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center"
               style={{
                 background: "linear-gradient(135deg, #FFD87C 0%, #CA973E 100%)",
               }}
             >
-              <MessageCircle className="w-5 h-5" style={{ color: "#031229" }} />
+              <MessageCircle className="w-4 h-4 md:w-5 md:h-5" style={{ color: "#031229" }} />
             </div>
             <div>
-              <h2 className="font-bold" style={{ color: "#FFFFFF" }}>VibeChat</h2>
+              <h2 className="font-bold text-sm md:text-base" style={{ color: "#FFFFFF" }}>VibeChat</h2>
               <p className="text-xs" style={{ color: "#526F8A" }}>BIZVILITY</p>
             </div>
           </div>
@@ -130,20 +176,17 @@ export const Sidebar = ({
             <div
               ref={menuButtonRef}
               onClick={toggleMenu}
-              className="p-2 rounded-lg hover:bg-opacity-10 transition-colors cursor-pointer"
+              className="p-1 md:p-2 rounded-lg hover:bg-opacity-10 transition-colors cursor-pointer"
               style={{ color: "#526F8A" }}
             >
-              <EllipsisVertical className="w-5 h-5" />
+              <EllipsisVertical className="w-4 h-4 md:w-5 md:h-5" />
             </div>
             {menuOpen && (
-              <div 
+              <div
                 ref={menuDropdownRef}
-                className="absolute right-0 mt-2 w-40 bg-[#0B1623] shadow-lg rounded-lg border border-gray-800 overflow-hidden z-50"
+                className="mt-1 md:mt-2 bg-[#0B1623] shadow-lg rounded-lg border border-gray-800 overflow-hidden z-50"
                 style={{
-                  // Simple positioning to prevent overflow
-                  right: 0,
-                  top: '100%',
-                  left: 'auto',
+                  position: 'fixed',
                 }}
               >
                 {/* Profile */}
@@ -152,7 +195,7 @@ export const Sidebar = ({
                     console.log("Profile clicked");
                     closeMenu();
                   }}
-                  className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700/40 cursor-pointer"
+                  className="px-3 md:px-4 py-2 text-xs md:text-sm text-gray-300 hover:bg-gray-700/40 cursor-pointer"
                 >
                   Profile
                 </div>
@@ -162,7 +205,7 @@ export const Sidebar = ({
                     console.log("Settings clicked");
                     closeMenu();
                   }}
-                  className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700/40 cursor-pointer"
+                  className="px-3 md:px-4 py-2 text-xs md:text-sm text-gray-300 hover:bg-gray-700/40 cursor-pointer"
                 >
                   Settings
                 </div>
@@ -172,7 +215,7 @@ export const Sidebar = ({
                     logout();
                     closeMenu();
                   }}
-                  className="px-4 py-2 text-sm text-red-400 hover:bg-red-500/20 cursor-pointer"
+                  className="px-3 md:px-4 py-2 text-xs md:text-sm text-red-400 hover:bg-red-500/20 cursor-pointer"
                 >
                   Logout
                 </div>
@@ -180,20 +223,20 @@ export const Sidebar = ({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+        <div className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg"
           style={{ backgroundColor: '#051834' }}>
-          <Search className="w-4 h-4" style={{ color: '#526F8A' }} />
+          <Search className="w-3 h-3 md:w-4 md:h-4" style={{ color: '#526F8A' }} />
           <input
             type="text"
             placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 bg-transparent outline-none text-sm"
+            className="flex-1 bg-transparent outline-none text-xs md:text-sm"
             style={{ color: '#FFFFFF' }}
           />
         </div>
       </div>
-      <div className="flex border-b" style={{ borderColor: '#051834' }}>
+      <div className="hidden md:flex border-b" style={{ borderColor: '#051834' }}>
         {(['chats', 'status', 'calls', 'groups']).map((view) => (
           <button
             key={view}
@@ -201,16 +244,16 @@ export const Sidebar = ({
               onViewChange(view);
               closeMenu(); // Close on view change
             }}
-            className="flex-1 py-3 text-sm font-medium transition-colors"
+            className="flex-1 py-2 md:py-3 text-xs md:text-sm font-medium transition-colors"
             style={{
               color: currentView === view ? '#FFD87C' : '#526F8A',
               borderBottom: currentView === view ? '2px solid #FFD87C' : 'none',
             }}
           >
-            {view === 'chats' && <MessageCircle className="w-5 h-5 mx-auto" />}
-            {view === 'status' && <Clock className="w-5 h-5 mx-auto" />}
-            {view === 'calls' && <Phone className="w-5 h-5 mx-auto" />}
-            {view === 'groups' && <Users className="w-5 h-5 mx-auto" />}
+            {view === 'chats' && <MessageCircle className="w-4 h-4 md:w-5 md:h-5 mx-auto" />}
+            {view === 'status' && <CircleDashed className="w-4 h-4 md:w-5 md:h-5 mx-auto" />}
+            {view === 'calls' && <Phone className="w-4 h-4 md:w-5 md:h-5 mx-auto" />}
+            {view === 'groups' && <Users className="w-4 h-4 md:w-5 md:h-5 mx-auto" />}
           </button>
         ))}
       </div>
@@ -222,7 +265,7 @@ export const Sidebar = ({
                 setShowNewChat(!showNewChat);
                 closeMenu(); // Close on new chat toggle
               }}
-              className="w-full p-4 text-left hover:bg-opacity-5 hover:bg-white transition-colors"
+              className="w-full p-3 md:p-4 text-left hover:bg-opacity-5 hover:bg-white transition-colors"
               style={{ color: '#FFD87C', borderBottom: '1px solid #051834' }}
             >
               + New Chat
@@ -230,23 +273,23 @@ export const Sidebar = ({
             {showNewChat && (
               <div className="border-b" style={{ borderColor: '#051834' }}>
                 {loadingUsers ? (
-                  <p style={{ color: '#526F8A', padding: '16px', textAlign: 'center' }}>Loading users...</p>
+                  <p style={{ color: '#526F8A', padding: '12px', textAlign: 'center', fontSize: '0.875rem' }}>Loading users...</p>
                 ) : (
                   uniqueUsers.map((u) => (
                     <button
                       key={u.participant.receiver}
                       onClick={() => createConversation(u.participant.receiver)}
-                      className="w-full p-4 flex items-center gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
+                      className="w-full p-3 md:p-4 flex items-center gap-2 md:gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
                     >
-                      <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold"
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-base md:text-lg font-semibold"
                         style={{ backgroundColor: '#385B9E', color: '#FFFFFF' }}>
                         {u.participant.fullName?.[0]?.toUpperCase() || '?'}
                       </div>
-                      <div className="flex-1 text-left">
-                        <p className="font-medium" style={{ color: '#FFFFFF' }}>
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="font-medium text-sm md:text-base" style={{ color: '#FFFFFF' }}>
                           {u.participant.fullName || 'Unknown User'}
                         </p>
-                        <p className="text-sm" style={{ color: '#526F8A' }}>
+                        <p className="text-xs md:text-sm truncate" style={{ color: '#526F8A' }}>
                           {u.participant.phone || '@unknown'}
                         </p>
                       </div>
@@ -256,7 +299,7 @@ export const Sidebar = ({
               </div>
             )}
             {loadingUsers ? (
-              <p style={{ color: '#526F8A', padding: '16px', textAlign: 'center' }}>Loading conversations...</p>
+              <p style={{ color: '#526F8A', padding: '12px', textAlign: 'center', fontSize: '0.875rem' }}>Loading conversations...</p>
             ) : (
               conversations.map((conv) => (
                 <button
@@ -265,12 +308,12 @@ export const Sidebar = ({
                     onSelectConversation(conv.id);
                     closeMenu(); // Close on select
                   }}
-                  className="w-full p-4 flex items-center gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
+                  className="w-full p-3 md:p-4 flex items-center gap-2 md:gap-3 hover:bg-opacity-5 hover:bg-white transition-colors"
                   style={{
                     backgroundColor: selectedConversationId === conv.id ? 'rgba(255, 216, 124, 0.1)' : 'transparent',
                   }}
                 >
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold"
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-base md:text-lg font-semibold"
                     style={{
                       backgroundColor: getConversationAvatar(conv) ? 'transparent' : '#385B9E',
                       backgroundImage: getConversationAvatar(conv) ? `url(${getConversationAvatar(conv)})` : 'none',
@@ -279,16 +322,16 @@ export const Sidebar = ({
                     }}>
                     {!getConversationAvatar(conv) && getConversationName(conv)[0].toUpperCase()}
                   </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-medium" style={{ color: '#FFFFFF' }}>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-medium text-sm md:text-base" style={{ color: '#FFFFFF' }}>
                       {getConversationName(conv)}
                     </p>
-                    <p className="text-sm truncate" style={{ color: '#526F8A' }}>
+                    <p className="text-xs md:text-sm truncate" style={{ color: '#526F8A' }}>
                       {conv.otherUser?.phone || 'Click to start chatting'}
                     </p>
                   </div>
                   {conv.otherUser?.is_online && (
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4CAF50' }} />
+                    <div className="w-2 h-2 md:w-3 md:h-3 rounded-full" style={{ backgroundColor: '#4CAF50' }} />
                   )}
                 </button>
               ))
@@ -296,9 +339,9 @@ export const Sidebar = ({
           </>
         )}
       </div>
-      <div className="p-4 border-t" style={{ borderColor: '#051834', borderTop: '1px solid #ccc' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-semibold"
+      <div className="p-3 md:p-4 border-t" style={{ borderColor: '#051834', borderTop: '1px solid #051834' }}>
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-lg font-semibold"
             style={{
               backgroundColor: userData?.avatar_url ? 'transparent' : '#385B9E',
               backgroundImage: userData?.avatar_url ? `url(${userData.avatar_url})` : 'none',
@@ -307,11 +350,11 @@ export const Sidebar = ({
             }}>
             {!userData?.avatar_url && userData?.fullName?.[0]?.toUpperCase()}
           </div>
-          <div className="flex-1">
-            <p className="font-medium" style={{ color: '#FFFFFF' }}>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm md:text-base" style={{ color: '#FFFFFF' }}>
               {userData?.fullName || 'Unknown User'}
             </p>
-            <p className="text-xs" style={{ color: '#526F8A' }}>
+            <p className="text-xs truncate" style={{ color: '#526F8A' }}>
               {userData?.email || 'No email'}
             </p>
           </div>
